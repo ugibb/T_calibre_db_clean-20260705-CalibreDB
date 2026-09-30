@@ -1,0 +1,40 @@
+# Output directories
+04-output/
+05-output/
+
+# Input data (large files)
+03-input/
+
+# Backups and temp
+01-init/00-bak/
+01-init/temp*.csv
+01-init/xx.md
+01-init/yy.txt
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
