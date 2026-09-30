@@ -1,0 +1,21 @@
+{
+  "metadata_conflict": {
+    "valid": ["fill-missing", "keep-target", "overwrite", "report-only"],
+    "default": "fill-missing"
+  },
+  "outputs": {
+    "log_filename": "step2_scan.log",
+    "merge_sql_filename": "step4_merge_instructions.sql",
+    "merge_report_filename": "step4_merge_report.csv"
+  },
+  "scan_outputs": {
+    "system_insert_course": "2-1-1：系统确认-新增课程.csv",
+    "system_insert_files": "2-1-2：系统确认-新增文件.csv",
+    "system_keep": "2-1-3：系统确认-可跳过记录.csv",
+    "manual_suspected_duplicate": "2-2-1：待人工确认-疑似重复.csv"
+  },
+  "actions": {
+    "valid": ["insert_course", "insert_files", "fill_missing_metadata", "merge_metadata", "keep_target", "report_only"],
+    "default": "report_only"
+  }
+}

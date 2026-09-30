@@ -1,0 +1,56 @@
+{
+  "actions": {
+    "valid": [
+      "delete_file",
+      "update_metadata",
+      "keep"
+    ],
+    "default": "keep",
+    "short_labels": {
+      "delete_file": "D",
+      "keep": "K",
+      "update_metadata": "U"
+    },
+    "descriptions": {
+      "delete_file": "删除 data 记录；BAT 物理删除实体文件",
+      "keep": "保留记录或实体文件；SQL/BAT 不执行操作",
+      "update_metadata": "更新 books/data 元数据；不移动实体文件"
+    },
+    "dictionary": {
+      "delete_file": {
+        "scope": "source_file",
+        "effect": "write",
+        "description": "Delete the data row from the incremental preprocessing database and move the physical file to quarantine."
+      },
+      "keep": {
+        "scope": "source_file",
+        "effect": "noop",
+        "description": "Keep the current incremental preprocessing record and do not generate SQL/BAT changes."
+      },
+      "update_metadata": {
+        "scope": "source_metadata",
+        "effect": "write",
+        "description": "Update books/data metadata in the incremental preprocessing database without moving physical files."
+      }
+    },
+    "display_order": [
+      "delete_file",
+      "keep",
+      "update_metadata"
+    ]
+  },
+  "outputs": {
+    "sql_filename": "step2_cleaning_instructions.sql",
+    "bat_filename": "step2_cleaning_instructions.bat",
+    "rollback_bat_filename": "step2_rollback.bat",
+    "legacy_filenames": [
+      "step2_cleaning_instructions.csv",
+      "step2_instruction_update.log",
+      "step2_rollback.bat"
+    ]
+  },
+  "bat": {
+    "library_dir_default": "E:\\98-Calibre-books-new",
+    "quarantine_dir_template": "E:\\98-Calibre-books-new\\quarantine\\{batch}"
+  }
+}

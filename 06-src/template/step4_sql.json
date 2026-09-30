@@ -1,0 +1,8 @@
+{
+  "book_files_query": "SELECT books.id AS book_id, books.title AS title, books.path AS book_path, data.id AS data_id, data.format AS format, data.name AS file_basename, data.uncompressed_size AS uncompressed_size FROM books JOIN data ON data.book = books.id ORDER BY books.id, data.id",
+  "select_book_by_id": "SELECT * FROM books WHERE id = ?",
+  "select_data_by_id": "SELECT * FROM data WHERE id = ?",
+  "table_info_books": "PRAGMA table_info(books)",
+  "table_info_data": "PRAGMA table_info(data)",
+  "last_insert_rowid": "SELECT last_insert_rowid()"
+}

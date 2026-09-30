@@ -1,0 +1,12 @@
+{
+  "create_audit_table": "CREATE TABLE IF NOT EXISTS cleaning_instruction_runs (instruction_id TEXT PRIMARY KEY, batch TEXT NOT NULL, book_id INTEGER NOT NULL, data_id INTEGER, action TEXT NOT NULL, execute_status TEXT NOT NULL, executed_at TEXT NOT NULL, verification_status TEXT NOT NULL, error_message TEXT)",
+  "delete_data_by_id": "DELETE FROM data WHERE id = ?",
+  "count_data_by_book": "SELECT COUNT(*) FROM data WHERE book = ?",
+  "delete_book_by_id": "DELETE FROM books WHERE id = ?",
+  "count_data_by_id": "SELECT COUNT(*) FROM data WHERE id = ?",
+  "update_book_title": "UPDATE books SET title = ? WHERE id = ?",
+  "update_data_name": "UPDATE data SET name = ? WHERE id = ?",
+  "select_book_title": "SELECT title FROM books WHERE id = ?",
+  "select_data_name": "SELECT name FROM data WHERE id = ?",
+  "upsert_audit": "INSERT INTO cleaning_instruction_runs (instruction_id, batch, book_id, data_id, action, execute_status, executed_at, verification_status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(instruction_id) DO UPDATE SET execute_status = excluded.execute_status, executed_at = excluded.executed_at, verification_status = excluded.verification_status, error_message = excluded.error_message"
+}

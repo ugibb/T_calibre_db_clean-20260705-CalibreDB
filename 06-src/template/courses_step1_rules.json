@@ -1,0 +1,53 @@
+{
+  "target_platforms": [
+    "01-得到", "02-喜马拉雅", "08-蜻蜓", "05_-少年得到",
+    "15_其它平台", "03-混沌", "06_十点课堂", "12-网易",
+    "04-樊登", "07_唯库", "11_三·节·课", "13_荔枝微课",
+    "14_丁香妈妈", "16-B站"
+  ],
+  "known_top_dirs": ["99-知识课程", "BaiduNetdiskDownload"],
+  "junk_title_suffixes": [
+    "【完结】", "【完结】-------------", "(完)", "（完）",
+    "------------"
+  ],
+  "mojibake_fragments": ["°Ù", "Ã«", "£¨", "����", "锟�"],
+  "mojibake_chars": "ÃÄÖÐ¹£µË¾íÔóÎÑ§Ł",
+  "min_path_depth": 4,
+  "output_order": {
+    "source_unknown": 1,
+    "depth_insufficient": 2,
+    "title_mojibake": 3
+  },
+  "auto_clean_rules": [
+    {
+      "reason_code": "title_cleanup",
+      "description": "清理 title 末尾垃圾标记",
+      "patterns": ["【完结】[-—－\\s]*$", "\\(完\\)$", "\\s*[-—－]+\\s*$"]
+    },
+    {
+      "reason_code": "empty_course",
+      "description": "空课程（课程下无任何文件）",
+      "action": "exclude"
+    }
+  ],
+  "auto_delete_outputs": [
+    {
+      "reason_code": "empty_course",
+      "filename": "1-1-1：系统排除-空课程.csv"
+    }
+  ],
+  "manual_review_outputs": [
+    {
+      "reason_code": "source_unknown",
+      "filename": "1-2-1：待人工确认-非标准来源平台.csv"
+    },
+    {
+      "reason_code": "depth_insufficient",
+      "filename": "1-2-2：待人工确认-路径深度不足.csv"
+    },
+    {
+      "reason_code": "title_mojibake",
+      "filename": "1-2-3：待人工确认-title乱码.csv"
+    }
+  ]
+}

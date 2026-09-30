@@ -1,0 +1,79 @@
+{
+  "defaults": {
+    "batch": "2026-07-07",
+    "input_dir": "03-input/01-Calibre",
+    "output_root": "04-output",
+    "full_db_dir": "04-output/2026-09-23/step5",
+    "log_dir": "05-log"
+  },
+  "patterns": {
+    "incremental_db": "metadata-{date}.db",
+    "full_db": "metadata-full-{date}.db"
+  },
+  "step_dirs": {
+    "step1": "step1",
+    "step2": "step2",
+    "step3": "step3",
+    "step4": "step4",
+    "step5": "step5"
+  },
+  "step1": {
+    "deduped_db_filename": "metadata-{date}.deduped.db",
+    "log_filename": "step1_dedup.log",
+    "book_init_path": {
+      "value_table": "custom_column_1",
+      "link_table": "books_custom_column_1_link"
+    }
+  },
+  "step2": {
+    "repair": {
+      "encoded_db_filename": "metadata-{date}.encoded.db",
+      "repair_report_filename": "step2_1_encode_repair.csv",
+      "title_copy_repair_filename": "step2_2_title_copy_repair.csv",
+      "basename_repair_filename": "step2_3_basename_repair.csv",
+      "log_filename": "step2_encode_repair.log",
+      "book_init_path": {
+        "value_table": "custom_column_1",
+        "link_table": "books_custom_column_1_link"
+      },
+      "targets": [
+        {"table": "books", "column": "title", "label": "书名", "filesystem_bound": false},
+        {"table": "books", "column": "sort", "label": "书名排序值", "filesystem_bound": false},
+        {"table": "books", "column": "author_sort", "label": "作者排序值", "filesystem_bound": false},
+        {"table": "authors", "column": "name", "label": "作者", "filesystem_bound": false},
+        {"table": "authors", "column": "sort", "label": "作者排序值", "filesystem_bound": false},
+        {"table": "series", "column": "name", "label": "丛书", "filesystem_bound": false},
+        {"table": "series", "column": "sort", "label": "丛书排序值", "filesystem_bound": false},
+        {"table": "publishers", "column": "name", "label": "出版社", "filesystem_bound": false},
+        {"table": "publishers", "column": "sort", "label": "出版社排序值", "filesystem_bound": false},
+        {"table": "tags", "column": "name", "label": "标签", "filesystem_bound": false},
+        {"table": "data", "column": "name", "label": "文件名", "filesystem_bound": true},
+        {"table": "books", "column": "path", "label": "书库路径", "filesystem_bound": true}
+      ]
+    }
+  },
+  "step3": {
+    "cleaned_db_filename": "metadata.cleaned.db",
+    "snapshot_filename": "step3_scan_snapshot.json",
+    "log_filename": "step3_scan.log",
+    "merge_auto_filename": "3-1-1：系统确认-跨book_id同书合并.csv",
+    "merge_unknown_filename": "3-2-1：待人工确认-未知前缀组.csv"
+  },
+  "step4": {
+    "apply": {
+      "report_filename": "step4_execution_report.csv",
+      "log_filename": "step4_execute_cleaning.log",
+      "quarantine_dirname": "quarantine"
+    },
+    "bat": {
+      "library_dir_default": "E:\\98-Calibre-books-new",
+      "quarantine_dir_template": "E:\\98-Calibre-books-new\\quarantine\\{batch}"
+    }
+  },
+  "step5": {
+    "merge_report_filename": "step5_merge_report.csv",
+    "manual_check_report_filename": "step5_manual_check_report.csv",
+    "merge_sql_filename": "step5_merge_instructions.sql",
+    "log_filename": "step5_sync.log"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "actions": {
+    "delete_file": {
+      "scope": "source_file",
+      "effect": "write",
+      "description": "Delete the data row from the incremental preprocessing database and move the physical file to quarantine."
+    },
+    "keep": {
+      "scope": "source_file",
+      "effect": "noop",
+      "description": "Keep the current incremental preprocessing record and do not generate SQL/BAT changes."
+    },
+    "update_metadata": {
+      "scope": "source_metadata",
+      "effect": "write",
+      "description": "Update books/data metadata in the incremental preprocessing database without moving physical files."
+    },
+    "insert_book": {
+      "scope": "book_file",
+      "effect": "write",
+      "description": "Insert a new books row and its data rows into the full library."
+    },
+    "insert_data": {
+      "scope": "book_file",
+      "effect": "write",
+      "description": "Insert a new data row under an existing full-library book."
+    },
+    "insert": {
+      "scope": "metadata_compare",
+      "effect": "compare_only",
+      "description": "Insert metadata rows that exist only in the incremental library."
+    },
+    "fill_missing_metadata": {
+      "scope": "metadata",
+      "effect": "write",
+      "description": "Only fill metadata fields or links missing in the full library."
+    },
+    "merge_metadata": {
+      "scope": "metadata",
+      "effect": "manual_or_policy_write",
+      "description": "Merge metadata records with the same business key but different non-ID fields."
+    },
+    "relink_metadata": {
+      "scope": "metadata_compare",
+      "effect": "compare_only",
+      "description": "Map incremental metadata IDs to existing full-library metadata IDs."
+    },
+    "keep_target": {
+      "scope": "target_record",
+      "effect": "noop",
+      "description": "Keep existing full-library records and do not write incremental values."
+    },
+    "report_only": {
+      "scope": "manual_review",
+      "effect": "noop",
+      "description": "Report the comparison result without changing the full library."
+    }
+  },
+  "steps": {
+    "step1_self_clean": [
+      "delete_file",
+      "keep",
+      "update_metadata"
+    ],
+    "step2_sync_apply": [
+      "insert_book",
+      "insert_data",
+      "fill_missing_metadata",
+      "merge_metadata",
+      "keep_target",
+      "report_only"
+    ],
+    "step2_metadata_compare": [
+      "insert",
+      "relink_metadata",
+      "keep_target",
+      "merge_metadata"
+    ]
+  }
+}

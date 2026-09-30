@@ -1,0 +1,140 @@
+{
+  "metadata_conflict": {
+    "valid": [
+      "fill-missing",
+      "keep-target",
+      "overwrite",
+      "report-only"
+    ],
+    "default": "fill-missing",
+    "overwrite": "overwrite",
+    "fill_missing": "fill-missing"
+  },
+  "outputs": {
+    "log_filename": "step5_sync.log",
+    "manual_check_report_filename": "step5_manual_check_report.csv",
+    "merge_sql_filename": "step5_merge_instructions.sql",
+    "merge_report_filename": "step5_merge_report.csv",
+    "legacy_report_filename": "step5_sync_report.csv"
+  },
+  "scan_outputs": {
+    "system_insert": "5-1-1：系统确认-全量库不存在可新增.csv",
+    "system_duplicate": "5-1-2：系统确认-文件级重复可跳过.csv",
+    "manual_suspected_duplicate": "5-2-3：待人工确认-疑似重复书籍.csv"
+  },
+  "actions": {
+    "valid": [
+      "insert_book",
+      "insert_data",
+      "fill_missing_metadata",
+      "merge_metadata",
+      "keep_target",
+      "report_only"
+    ],
+    "default": "report_only",
+    "dictionary": {
+      "insert_book": {
+        "scope": "book_file",
+        "effect": "write",
+        "description": "Insert a new books row and its data rows into the full library."
+      },
+      "insert_data": {
+        "scope": "book_file",
+        "effect": "write",
+        "description": "Insert a new data row under an existing full-library book."
+      },
+      "fill_missing_metadata": {
+        "scope": "metadata",
+        "effect": "write",
+        "description": "Only fill metadata fields or links missing in the full library."
+      },
+      "merge_metadata": {
+        "scope": "metadata",
+        "effect": "manual_or_policy_write",
+        "description": "Merge metadata records with the same business key but different non-ID fields."
+      },
+      "keep_target": {
+        "scope": "target_record",
+        "effect": "noop",
+        "description": "Keep existing full-library records and do not write incremental values."
+      },
+      "report_only": {
+        "scope": "manual_review",
+        "effect": "noop",
+        "description": "Report the comparison result without changing the full library."
+      }
+    }
+  },
+  "metadata_compare_actions": {
+    "valid": [
+      "insert",
+      "relink_metadata",
+      "keep_target",
+      "merge_metadata"
+    ],
+    "dictionary": {
+      "insert": {
+        "scope": "metadata_compare",
+        "effect": "compare_only",
+        "description": "Metadata exists only in the incremental library; Step5 apply handles it through fill_missing_metadata or insert_book/insert_data."
+      },
+      "relink_metadata": {
+        "scope": "metadata_compare",
+        "effect": "compare_only",
+        "description": "Metadata business key is the same but IDs differ; Step5 apply maps links to the full-library metadata ID during metadata sync."
+      },
+      "keep_target": {
+        "scope": "metadata_compare",
+        "effect": "compare_only",
+        "description": "Keep existing full-library metadata; no direct metadata compare action is executed."
+      },
+      "merge_metadata": {
+        "scope": "metadata_compare",
+        "effect": "compare_only",
+        "description": "Metadata fields conflict; merge only happens when a Step2 executable action chooses merge metadata policy."
+      }
+    }
+  },
+  "metadata_links": {
+    "multi_dictionary": [
+      {
+        "dictionary_table": "authors",
+        "key_column": "name",
+        "link_table": "books_authors_link",
+        "link_column": "author"
+      },
+      {
+        "dictionary_table": "tags",
+        "key_column": "name",
+        "link_table": "books_tags_link",
+        "link_column": "tag"
+      },
+      {
+        "dictionary_table": "languages",
+        "key_column": "lang_code",
+        "link_table": "books_languages_link",
+        "link_column": "lang_code"
+      },
+      {
+        "dictionary_table": "ratings",
+        "key_column": "rating",
+        "link_table": "books_ratings_link",
+        "link_column": "rating"
+      }
+    ],
+    "single_dictionary": [
+      {
+        "dictionary_table": "publishers",
+        "key_column": "name",
+        "link_table": "books_publishers_link",
+        "link_column": "publisher"
+      },
+      {
+        "dictionary_table": "series",
+        "key_column": "name",
+        "link_table": "books_series_link",
+        "link_column": "series"
+      }
+    ]
+  }
+}

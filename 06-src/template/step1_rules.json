@@ -1,0 +1,118 @@
+{
+  "target_formats": [
+    "azw",
+    "azw3",
+    "epub",
+    "mobi", 
+    "pdf", 
+    "txt"
+  ],
+  "junk_title_keywords": [
+    "夸克网盘",
+    "百度网盘",
+    "更多看这里",
+    "资源分享",
+    "更多整理",
+    "资料 教程 学习 资源汇总",
+    "必看资源库导航",
+    "快速查找资源",
+    "免费资源领取",
+    "热门资源领取",
+    "所有资源大汇总",
+    "学习资源领取",
+    "终身学习者的公益资源站",
+    "福利社资源导航",
+    "（防失联必备）",
+    "福利社所有资源",
+    "关注在线更新表格",
+    "电子书资源地",
+    "获取更多网盘资源",
+    "热门资源进群获取",
+    "热门资料分享",
+    "资料更新地址",
+    "打开你的网盘浏览",
+    "Thumbs",
+    "更多热门小说领取",
+    "使用手册，必看",
+    "教育考试 学习考证"
+  ],
+  "unknown_basename_markers": [
+    "Wei Zhi",
+    "Unknown",
+    "Untitled"
+  ],
+  "actions": {
+    "delete": "delete_file",
+    "keep": "keep"
+  },
+  "output_order": {
+    "title_junk_keyword": 1,
+    "duplicate_title_ext_bytes": 2,
+    "non_target_format": 3,
+    "title_mojibake": 4,
+    "title_copy": 5,
+    "file_basename_unknown": 7
+  },
+  "sql": {
+    "book_files_query": "SELECT books.id AS book_id, books.title AS title, books.path AS book_path, data.id AS data_id, data.format AS format, data.name AS file_basename, data.uncompressed_size AS bytes FROM books JOIN data ON data.book = books.id ORDER BY books.id, data.id"
+  },
+  "auto_delete_outputs": [
+    {
+      "reason_code": "title_junk_keyword",
+      "filename": "2-1-1：系统确认-title命中垃圾关键词.csv"
+    },
+    {
+      "reason_code": "duplicate_title_ext_bytes",
+      "filename": "2-1-2：系统确认-重复文件-title_ext_bytes匹配.csv"
+    },
+    {
+      "reason_code": "non_target_format",
+      "filename": "2-1-3：系统确认-非电子书格式.csv"
+    }
+  ],
+  "manual_review_outputs": [
+    {
+      "reason_code": "title_mojibake",
+      "filename": "2-2-1：待人工确认-title乱码.csv"
+    },
+    {
+      "reason_code": "title_copy",
+      "filename": "2-2-2：待人工确认-title副本.csv"
+    },
+    {
+      "reason_code": "file_basename_unknown",
+      "filename": "2-2-4：待人工确认-basename未正确识别.csv"
+    }
+  ],
+  "auto_summary_outputs": [
+    {
+      "reason_code": "title_junk_keyword",
+      "label": "【2-1-1:系统确认】：title命中垃圾关键词标记待删除",
+      "summary_type": "format_counts"
+    },
+    {
+      "reason_code": "duplicate_title_ext_bytes",
+      "label": "【2-1-2:系统确认】：重复文件（title + ext + bytes）对比",
+      "summary_type": "duplicate_comparison"
+    },
+    {
+      "reason_code": "non_target_format",
+      "label": "【2-1-3:系统确认】：非电子书格式标记待删除",
+      "summary_type": "format_counts"
+    }
+  ],
+  "manual_summary_outputs": [
+    {
+      "reason_code": "title_mojibake",
+      "label": "【2-2-1:待人工确认】：「title」字段出现乱码"
+    },
+    {
+      "reason_code": "title_copy",
+      "label": "【2-2-2:待人工确认】：「title」字段出现副本"
+    },
+    {
+      "reason_code": "file_basename_unknown",
+      "label": "【2-2-4:待人工确认】：「file_basename」未正确识别（「Wei Zhi」、「Unknown」、「Untitled」）"
+    }
+  ]
+}
