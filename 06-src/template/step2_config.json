@@ -2,17 +2,20 @@
   "actions": {
     "valid": [
       "delete_file",
+      "quarantine_file",
       "update_metadata",
       "keep"
     ],
     "default": "keep",
     "short_labels": {
       "delete_file": "D",
+      "quarantine_file": "Q",
       "keep": "K",
       "update_metadata": "U"
     },
     "descriptions": {
       "delete_file": "删除 data 记录；BAT 物理删除实体文件",
+      "quarantine_file": "保留 data 记录；BAT 隔离 loser 书籍目录（合并后残留文件）",
       "keep": "保留记录或实体文件；SQL/BAT 不执行操作",
       "update_metadata": "更新 books/data 元数据；不移动实体文件"
     },
@@ -21,6 +24,11 @@
         "scope": "source_file",
         "effect": "write",
         "description": "Delete the data row from the incremental preprocessing database and move the physical file to quarantine."
+      },
+      "quarantine_file": {
+        "scope": "source_file",
+        "effect": "quarantine",
+        "description": "Keep the data row but quarantine the loser book directory (files remaining after merge moved data to winner)."
       },
       "keep": {
         "scope": "source_file",
@@ -35,6 +43,7 @@
     },
     "display_order": [
       "delete_file",
+      "quarantine_file",
       "keep",
       "update_metadata"
     ]

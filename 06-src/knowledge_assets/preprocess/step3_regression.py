@@ -179,6 +179,7 @@ class MergePlanRow:
     loser_formats: str
     moved_data_ids: str
     duplicate_data_ids: str
+    merge_type: str = "path_prefix"
 
 
 def run_step3_regression(batch: str, incremental_dir: Path, output_dir: Path) -> None:
@@ -192,6 +193,8 @@ def run_step3_regression(batch: str, incremental_dir: Path, output_dir: Path) ->
     parent_output_dir = output_dir
     incremental_dir = resolve_incremental_entity_dir(incremental_dir, metadata_db)
     config = pipeline_config()
+    step2_cfg = load_json_config("step2_config.json")
+    library_root = Path(str(step2_cfg["bat"]["library_dir_default"]))
     repair_handoffs = _load_step2_repair_handoffs(step_dir(output_dir, "step2"), config)
     output_dir = step_dir(output_dir, "step3")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -217,13 +220,25 @@ def run_step3_regression(batch: str, incremental_dir: Path, output_dir: Path) ->
 
     merge_auto_path = output_dir / str(config["step3"]["merge_auto_filename"])
     merge_unknown_path = output_dir / str(config["step3"]["merge_unknown_filename"])
+    merge_title_author_path = output_dir / str(config["step3"]["merge_title_author_filename"])
     auto_merge_plan, unknown_merge_plan = _scan_cross_bookid_merge(merged_db_path, emit)
     _write_csv(merge_auto_path, auto_merge_plan, MergePlanRow)
     _write_csv(merge_unknown_path, unknown_merge_plan, MergePlanRow)
     emit(f"输出跨book_id合并计划[auto]： {_display_path(merge_auto_path)}")
     emit(f"输出跨book_id合并计划[unknown]： {_display_path(merge_unknown_path)}")
     if auto_merge_plan:
-        _apply_cross_bookid_merge(merged_db_path, auto_merge_plan, emit)
+        _apply_cross_bookid_merge(merged_db_path, auto_merge_plan, emit, library_root)
+
+    # ---- 阶段1b：title+author 合并（捕获路径前缀匹配遗漏的重复） ----
+    title_author_plan = _scan_title_author_merge(merged_db_path, emit)
+    _write_csv(merge_title_author_path, title_author_plan, MergePlanRow)
+    emit(f"输出跨book_id合并计划[title+author]： {_display_path(merge_title_author_path)}")
+    if title_author_plan:
+        _apply_cross_bookid_merge(merged_db_path, title_author_plan, emit, library_root)
+
+    # ---- 阶段1c：生成合并删除 CSV（供 step4 生成物理文件删除指令） ----
+    merge_deletion_csv = output_dir / "3-1-3：系统确认-合并删除data.csv"
+    _write_merge_deletion_csv(metadata_db, merged_db_path, merge_deletion_csv, emit)
 
     merged_books, merged_data = db_table_counts(merged_db_path)
     emit(f"合并后数据库： books {merged_books} | data {merged_data}")
@@ -934,10 +949,94 @@ def _scan_cross_bookid_merge(
     auto_groups_count = len(auto_groups)
     unknown_books = len(unknown_plan)
     emit(
-        f"跨book_id合并扫描： auto {auto_groups_count} 组 / {auto_losers} loser | "
+        f"跨book_id合并扫描[path_prefix]： auto {auto_groups_count} 组 / {auto_losers} loser | "
         f"未知/ {len(unknown_groups)} 组 / {unknown_books} book"
     )
     return auto_plan, unknown_plan
+
+
+def _scan_title_author_merge(
+    metadata_db: Path, emit: callable
+) -> list[MergePlanRow]:
+    """Scan for title+author duplicates that path_prefix matching missed.
+
+    Some books share the same title and author but were imported at different
+    times, resulting in different Calibre paths.  This second pass catches
+    them by grouping on ``normalize_title(title) + author_sort``.
+    """
+    emit("-----> 扫描跨 book_id 同书合并[title+author]")
+    books, data_by_book = _load_books_for_merge(metadata_db)
+
+    with sqlite3.connect(metadata_db) as conn:
+        conn.row_factory = sqlite3.Row
+        author_rows = conn.execute(
+            "SELECT b.id AS book_id, b.author_sort "
+            "FROM books b"
+        ).fetchall()
+    author_map: dict[int, str] = {
+        int(r["book_id"]): str(r["author_sort"] or "").strip().lower()
+        for r in author_rows
+    }
+
+    groups: dict[tuple[str, str], list[int]] = {}
+    for bid, book in books.items():
+        title_key = normalize_title(book["title"])
+        author_key = author_map.get(bid, "")
+        if not title_key:
+            continue
+        groups.setdefault((title_key, author_key), []).append(bid)
+
+    multi = {k: v for k, v in groups.items() if len(v) > 1}
+
+    plan: list[MergePlanRow] = []
+    group_num = 0
+    for (title_key, author_key) in sorted(multi):
+        group_num += 1
+        book_ids = multi[(title_key, author_key)]
+        winner_id = max(book_ids, key=lambda bid: (len(data_by_book[bid]), -bid))
+        winner = books[winner_id]
+        winner_formats = sorted({d["format"] for d in data_by_book[winner_id]})
+        winner_fmt_set = set(winner_formats)
+
+        for loser_id in sorted(bid for bid in book_ids if bid != winner_id):
+            loser = books[loser_id]
+            loser_data = data_by_book[loser_id]
+            loser_fmts = sorted({d["format"] for d in loser_data})
+            moved: list[int] = []
+            dupes: list[int] = []
+            for d in sorted(loser_data, key=lambda d: d["data_id"]):
+                fmt = d["format"]
+                if fmt and fmt not in winner_fmt_set:
+                    moved.append(d["data_id"])
+                    winner_fmt_set.add(fmt)
+                else:
+                    dupes.append(d["data_id"])
+            plan.append(
+                MergePlanRow(
+                    merge_group=f"TA{group_num:04d}",
+                    path_prefix=title_key,
+                    winner_book_id=winner_id,
+                    winner_path=winner["path"],
+                    winner_format_count=len(winner_formats),
+                    loser_book_id=loser_id,
+                    loser_path=loser["path"],
+                    loser_formats=",".join(loser_fmts),
+                    moved_data_ids=",".join(str(x) for x in moved),
+                    duplicate_data_ids=",".join(str(x) for x in dupes),
+                    merge_type="title_author",
+                )
+            )
+
+    total_groups = len(multi)
+    total_losers = len(plan)
+    total_dup_data = sum(
+        len(p.duplicate_data_ids.split(",")) for p in plan if p.duplicate_data_ids
+    )
+    emit(
+        f"跨book_id合并扫描[title+author]： {total_groups} 组 / "
+        f"{total_losers} loser / {total_dup_data} 重复 data"
+    )
+    return plan
 
 
 def _link_tables_with_book_column(conn: sqlite3.Connection) -> list[str]:
@@ -956,6 +1055,7 @@ def _apply_cross_bookid_merge(
     metadata_db: Path,
     merge_plan: list[MergePlanRow],
     emit: callable,
+    library_root: Path | None = None,
 ) -> None:
     if not merge_plan:
         return
@@ -969,6 +1069,29 @@ def _apply_cross_bookid_merge(
     total_losers = len(merge_plan)
     total_moved = 0
     total_deleted = 0
+
+    # ---- 收集物理文件复制操作（将 moved 文件从 loser 目录复制到 winner 目录） ----
+    file_ops: list[tuple[Path, Path]] = []  # (src, dst)
+    if library_root is not None:
+        with sqlite3.connect(f"file:{metadata_db}?mode=ro", uri=True) as fconn:
+            fconn.row_factory = sqlite3.Row
+            for plan in merge_plan:
+                moved_ids = [int(x) for x in plan.moved_data_ids.split(",") if x]
+                if moved_ids:
+                    ph = ",".join("?" * len(moved_ids))
+                    winner_dir = library_root / fconn.execute(
+                        "SELECT path FROM books WHERE id = ?", (plan.winner_book_id,)
+                    ).fetchone()[0]
+                    for r in fconn.execute(
+                        f"SELECT d.name, d.format, b.path FROM data d "
+                        f"JOIN books b ON b.id = d.book WHERE d.id IN ({ph})",
+                        moved_ids,
+                    ).fetchall():
+                        fname = f"{r['name']}.{r['format']}"
+                        src = library_root / r["path"] / fname
+                        dst = winner_dir / fname
+                        if src != dst:
+                            file_ops.append((src, dst))
 
     with sqlite3.connect(metadata_db, isolation_level=None) as conn:
         link_tables = _link_tables_with_book_column(conn)
@@ -1007,9 +1130,117 @@ def _apply_cross_bookid_merge(
             )
         conn.execute("COMMIT")
 
+    # ---- 物理文件操作：复制 moved 文件到 winner 目录 ----
+    file_ops_ok = 0
+    file_ops_skip = 0
+    if library_root is not None:
+        for src, dst in file_ops:
+            try:
+                if src.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(src), str(dst))
+                    file_ops_ok += 1
+                else:
+                    file_ops_skip += 1
+            except OSError:
+                file_ops_skip += 1
+
     emit(
         f"合并完成： {merge_groups} 组 | {total_losers} loser | "
         f"移动 data {total_moved} | 删除 data {total_deleted}"
+        + (f" | 文件操作 {file_ops_ok} 成功 / {file_ops_skip} 跳过" if library_root else "")
+    )
+
+
+def _write_merge_deletion_csv(
+    input_db: Path,
+    merged_db: Path,
+    output_path: Path,
+    emit: callable,
+) -> None:
+    """Write a Candidate-format CSV for ALL data records belonging to
+    loser books.  Includes both deleted duplicates and data that was
+    moved to the winner, so Step4/BAT quarantines every loser dir."""
+    with sqlite3.connect(f"file:{input_db}?mode=ro", uri=True) as conn:
+        input_data_ids = {
+            int(r[0]) for r in conn.execute("SELECT id FROM data").fetchall()
+        }
+        input_book_ids = {
+            int(r[0]) for r in conn.execute("SELECT id FROM books").fetchall()
+        }
+
+    with sqlite3.connect(f"file:{merged_db}?mode=ro", uri=True) as conn:
+        merged_data_ids = {
+            int(r[0]) for r in conn.execute("SELECT id FROM data").fetchall()
+        }
+        merged_book_ids = {
+            int(r[0]) for r in conn.execute("SELECT id FROM books").fetchall()
+        }
+
+    deleted_data_ids = input_data_ids - merged_data_ids
+    loser_book_ids = input_book_ids - merged_book_ids
+    loser_data_ids: set[int] = set()
+    if loser_book_ids:
+        with sqlite3.connect(f"file:{input_db}?mode=ro", uri=True) as conn:
+            ph = ",".join("?" * len(loser_book_ids))
+            loser_data_ids = {
+                int(r[0])
+                for r in conn.execute(
+                    f"SELECT id FROM data WHERE book IN ({ph})",
+                    list(loser_book_ids),
+                ).fetchall()
+            }
+    combined_ids = deleted_data_ids | loser_data_ids
+    if not combined_ids:
+        emit("合并删除数据：无（合并未删除或移动任何 data 记录）")
+        return
+    with sqlite3.connect(f"file:{input_db}?mode=ro", uri=True) as conn:
+        conn.row_factory = sqlite3.Row
+        ph = ",".join("?" * len(combined_ids))
+        rows = conn.execute(
+            f"SELECT d.id AS data_id, d.book AS book_id, d.format, "
+            f"d.name AS file_basename, b.path AS book_path, b.title "
+            f"FROM data d JOIN books b ON b.id = d.book "
+            f"WHERE d.id IN ({ph})",
+            list(combined_ids),
+        ).fetchall()
+    records: list[Candidate] = []
+    for r in rows:
+        data_id = int(r["data_id"])
+        if data_id in deleted_data_ids:
+            reason = "合并阶段删除的重复 data"
+            action = "delete_file"
+        else:
+            reason = "合并阶段移至 winner 的 data（loser 目录需隔离）"
+            action = "quarantine_file"
+        ext = str(r["format"] or "").strip().lower()
+        file_basename = str(r["file_basename"] or "").strip()
+        book_path = str(r["book_path"] or "")
+        relative_path = str(Path(book_path) / f"{file_basename}.{ext}")
+        book_id = int(r["book_id"])
+        cand = Candidate(
+            candidate_id=_stable_id(
+                "merge", book_id, data_id, "merge_deletion", str(data_id)
+            ),
+            batch="merge",
+            book_id=book_id,
+            data_id=data_id,
+            title=str(r["title"] or ""),
+            file_basename=file_basename,
+            ext=ext,
+            bytes=None,
+            relative_path=relative_path,
+            reason_code="merge_deletion",
+            reason_detail=reason,
+            matched_value=str(data_id),
+            recommended_action=action,
+        )
+        records.append(cand)
+    _write_csv(output_path, records, Candidate)
+    emit(
+        f"合并删除数据：{len(combined_ids)} 条 data "
+        f"（删除 {len(deleted_data_ids)} + 移动 {len(loser_data_ids)}）"
+        f" -> {_display_path(output_path)}"
     )
 
 

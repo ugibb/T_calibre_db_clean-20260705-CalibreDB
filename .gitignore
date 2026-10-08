@@ -1,5 +1,7 @@
 # Output directories
 04-output/
+04-output-/
+04-output--/
 05-output/
 
 # Input data (large files)

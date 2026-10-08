@@ -57,7 +57,8 @@
     "snapshot_filename": "step3_scan_snapshot.json",
     "log_filename": "step3_scan.log",
     "merge_auto_filename": "3-1-1：系统确认-跨book_id同书合并.csv",
-    "merge_unknown_filename": "3-2-1：待人工确认-未知前缀组.csv"
+    "merge_unknown_filename": "3-2-1：待人工确认-未知前缀组.csv",
+    "merge_title_author_filename": "3-1-2：系统确认-跨book_id同书合并-title_author.csv"
   },
   "step4": {
     "apply": {

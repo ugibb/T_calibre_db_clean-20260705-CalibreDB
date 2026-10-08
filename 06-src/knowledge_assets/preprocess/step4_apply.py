@@ -41,9 +41,17 @@ class SqlPlan:
 def run_step4_apply(batch: str, incremental_dir: Path, output_dir: Path, metadata_db: Path | None = None) -> None:
     logger = get_logger("preprocess.step4")
     if metadata_db is None:
-        metadata_db = resolve_incremental_db(
-            batch, incremental_dir, output_dir, include_step2_repair=True, include_step2_apply=False
-        )
+        # 优先使用 merged.db（Step3 的产物），如果不存在则回退到 encoded.db
+        step3_dir = step_dir(output_dir, "step3")
+        merged_db = step3_dir / "metadata.merged.db"
+        if merged_db.exists():
+            metadata_db = merged_db
+            logger.info(f"使用 Step3 合并后的数据库： {display_path(metadata_db)}")
+        else:
+            metadata_db = resolve_incremental_db(
+                batch, incremental_dir, output_dir, include_step2_repair=True, include_step2_apply=False
+            )
+            logger.info(f"merged.db 不存在，回退到增量库： {display_path(metadata_db)}")
     resolved_batch = batch_from_metadata_path(metadata_db)
     if resolved_batch is not None and output_dir.name == batch:
         output_dir = output_dir.parent / resolved_batch

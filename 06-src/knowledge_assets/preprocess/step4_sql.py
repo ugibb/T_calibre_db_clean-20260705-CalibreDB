@@ -33,9 +33,17 @@ _CONFIG_PATH = _SRC_DIR / "template" / "step2_config.json"
 def run_step4_sql(batch: str, output_dir: Path, incremental_dir: Path | None = None, metadata_db: Path | None = None) -> None:
     logger = get_logger("preprocess.step4")
     if metadata_db is None:
-        metadata_db = resolve_incremental_db(
-            batch, incremental_dir, output_dir, include_step2_repair=True, include_step2_apply=False
-        )
+        # 优先使用 merged.db（Step3 的产物），如果不存在则回退到 encoded.db
+        step3_dir = step_dir(output_dir, "step3")
+        merged_db = step3_dir / "metadata.merged.db"
+        if merged_db.exists():
+            metadata_db = merged_db
+            logger.info(f"使用 Step3 合并后的数据库： {display_path(metadata_db)}")
+        else:
+            metadata_db = resolve_incremental_db(
+                batch, incremental_dir, output_dir, include_step2_repair=True, include_step2_apply=False
+            )
+            logger.info(f"merged.db 不存在，回退到增量库： {display_path(metadata_db)}")
     resolved_batch = batch_from_metadata_path(metadata_db)
     if resolved_batch is not None and output_dir.name == batch:
         output_dir = output_dir.parent / resolved_batch
@@ -73,6 +81,21 @@ def run_step4_sql(batch: str, output_dir: Path, incremental_dir: Path | None = N
                 record["_source"] = source
                 rows.append(record)
 
+    # 读取合并阶段删除的 data 记录（合并时从 winner 中删除的重复 data）
+    merge_deletion_path = step3_dir / "3-1-3：系统确认-合并删除data.csv"
+    if merge_deletion_path.exists():
+        merge_records = read_csv_dicts(merge_deletion_path)
+        logger.info(
+            "读取 [合并删除] 输入：%s | %s 条",
+            merge_deletion_path.name,
+            len(merge_records),
+        )
+        for record in merge_records:
+            record["_source"] = "[合并删除]"
+            rows.append(record)
+    else:
+        logger.info("合并删除 CSV 不存在（跳过）：%s", merge_deletion_path.name)
+
     rows.sort(key=lambda row: (int(row.get("book_id") or 0), int(row.get("data_id") or 0), row.get("reason_code", "")))
 
     sql_lines, sql_stats = _build_sql(batch, rows, metadata_db, config)
@@ -85,10 +108,10 @@ def run_step4_sql(batch: str, output_dir: Path, incremental_dir: Path | None = N
 
     action_counts = _action_counts(rows, config)
     sql_delete_total = sql_stats["delete_data_count"] + sql_stats["delete_book_count"]
-    bat_move_count = action_counts.get("delete_file", 0)
-    bat_noop_count = sum(count for action, count in action_counts.items() if action != "delete_file")
+    bat_move_count = action_counts.get("delete_file", 0) + action_counts.get("quarantine_file", 0)
+    bat_noop_count = sum(count for action, count in action_counts.items() if action not in ("delete_file", "quarantine_file"))
     rollback_book_count = len({
-        row.get("book_id") for row in rows if _action_for(row, config) == "delete_file" and row.get("relative_path")
+        row.get("book_id") for row in rows if _action_for(row, config) in ("delete_file", "quarantine_file") and row.get("relative_path")
     })
     logger.info("recommended_action 统计：%s", _format_counts(action_counts))
     logger.info(
@@ -252,15 +275,15 @@ def _build_bat(batch: str, rows: list[dict[str, str]], config: dict[str, object]
         'if not exist "%QUARANTINE_DIR%" mkdir "%QUARANTINE_DIR%"',
         "",
     ]
-    
+
     book_dirs_processed = {}
     for row in rows:
         action = _action_for(row, config)
         relative = row.get("relative_path", "")
         book_id = row.get("book_id", "")
         data_id = row.get("data_id", "")
-        
-        if action == "delete_file" and relative:
+
+        if action in ("delete_file", "quarantine_file") and relative:
             book_dir = str(Path(relative).parent).replace("\\", "/")
             if book_dir not in book_dirs_processed:
                 book_dirs_processed[book_dir] = book_id
@@ -325,7 +348,7 @@ def _build_rollback_bat(batch: str, rows: list[dict[str, str]], config: dict[str
 
     book_dirs_seen: dict[str, str] = {}
     for row in rows:
-        if _action_for(row, config) != "delete_file":
+        if _action_for(row, config) not in ("delete_file", "quarantine_file"):
             continue
         relative = row.get("relative_path", "")
         if not relative:
